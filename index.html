@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小学生 漢字クイズ</title>
+    <style>
+        /* デザイン設定 (CSS) */
+        body {
+            font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+            background-color: #f0f8ff;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            user-select: none; /* テキスト選択防止 */
+        }
+
+        .app-container {
+            background-color: white;
+            width: 90%;
+            max-width: 500px;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        h1 { color: #2c3e50; font-size: 24px; margin-bottom: 20px; }
+        h2 { color: #007bff; font-size: 20px; margin: 10px 0; }
+
+        /* ボタンのデザイン */
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s, transform 0.1s;
+        }
+        .btn:hover { background-color: #45a049; }
+        .btn:active { transform: scale(0.98); }
+        
+        .btn-large { width: 100%; font-size: 18px; margin: 15px 0; }
+        
+        .btn-option { 
+            background-color: #fff; 
+            color: #333; 
+            border: 2px solid #ddd; 
+            font-weight: bold;
+        }
+        .btn-option:hover { background-color: #e3f2fd; }
+
+        /* 選択状態のデザイン */
+        .selected { background-color: #007bff; color: white; border-color: #007bff; }
+
+        /* 漢字表示エリア */
+        .kanji-display {
+            font-size: 80px;
+            margin: 10px 0 20px 0;
+            font-weight: bold;
+            color: #333;
+        }
+
+        /* 画面の切り替え用 */
+        .screen { display: none; }
+        .active { display: block; }
+
+        /* 設定エリア */
+        .settings-group { margin-bottom: 20px; text-align: left; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        .settings-label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
+        
+        .grade-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        /* タイマーバー */
+        .timer-container {
+            width: 100%;
+            background-color: #ddd;
+            border-radius: 10px;
+            margin: 10px 0;
+            height: 10px;
+            overflow: hidden;
+        }
+        .timer-bar {
+            height: 100%;
+            background-color: #ff9800;
+            width: 100%;
+            transition: width 0.1s linear;
+        }
+
+        /* フィードバック */
+        .feedback {
+            font-size: 24px;
+            font-weight: bold;
+            height: 35px;
+            margin-bottom: 5px;
+        }
+        .correct { color: #d32f2f; }
+        .incorrect { color: #1976d2; }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div id="menu-screen" class="screen active">
+        <h1>🏫 小学生 漢字クイズ</h1>
+        
+        <div class="settings-group">
+            <span class="settings-label">① 学年をえらんでね</span>
+            <div class="grade-grid" id="grade-selector">
+                </div>
+        </div>
+
+        <div class="settings-group">
+            <span class="settings-label">② 問題数</span>
+            <div>
+                <button class="btn q-count-btn selected" onclick="selectQuestionCount(5)">5問</button>
+                <button class="btn q-count-btn" onclick="selectQuestionCount(10)">10問</button>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <span class="settings-label">③ 制限時間（1問あたり）</span>
+            <div>
+                <button class="btn time-limit-btn selected" onclick="selectTimeLimit(5)">5秒</button>
+                <button class="btn time-limit-btn" onclick="selectTimeLimit(10)">10秒</button>
+            </div>
+        </div>
+
+        <button class="btn btn-large" onclick="startGame()">スタート！</button>
+    </div>
+
+    <div id="quiz-screen" class="screen">
+        <h2 id="progress-text">第 1 問</h2>
+        
+        <div class="timer-container">
+            <div id="timer-bar" class="timer-bar"></div>
+        </div>
+        
+        <div id="feedback-area" class="feedback"></div>
+        <div class="kanji-display" id="kanji-text">漢</div>
+        <div id="options-container">
+            </div>
+    </div>
+
+    <div id="result-screen" class="screen">
+        <h1>結果発表！</h1>
+        <p style="font-size: 20px;">あなたのスコア</p>
+        <div class="kanji-display" style="color: #d32f2f;" id="score-text">100点</div>
+        <p id="comment-text">すごい！</p>
+        <button class="btn btn-large" onclick="returnToMenu()">メニューにもどる</button>
+    </div>
+</div>
+
+<script>
+    /* --- データ設定 (サンプル) --- */
+    const kanjiDatabase = {
+        1: [
+            { kanji: "雨", reading: "あめ" }, { kanji: "王", reading: "おう" }, 
+            { kanji: "音", reading: "おと" }, { kanji: "下", reading: "した" },
+            { kanji: "火", reading: "ひ" }, { kanji: "花", reading: "はな" },
+            { kanji: "貝", reading: "かい" }, { kanji: "学", reading: "がく" },
+            { kanji: "気", reading: "き" }, { kanji: "九", reading: "きゅう" },
+            { kanji: "休", reading: "やすみ" }, { kanji: "玉", reading: "たま" }
+        ],
+        2: [
+            { kanji: "引", reading: "ひく" }, { kanji: "雲", reading: "くも" },
+            { kanji: "園", reading: "その" }, { kanji: "遠", reading: "とおい" },
+            { kanji: "何", reading: "なに" }, { kanji: "夏", reading: "なつ" },
+            { kanji: "家", reading: "いえ" }, { kanji: "科", reading: "か" },
+            { kanji: "歌", reading: "うた" }, { kanji: "画", reading: "が" }
+        ],
+        3: [
+            { kanji: "悪", reading: "わるい" }, { kanji: "安", reading: "やすい" },
+            { kanji: "医", reading: "い" }, { kanji: "委", reading: "い" },
+            { kanji: "意", reading: "い" }, { kanji: "育", reading: "そだつ" },
+            { kanji: "員", reading: "いん" }, { kanji: "飲", reading: "のむ" },
+            { kanji: "院", reading: "いん" }, { kanji: "運", reading: "はこぶ" }
+        ],
+        4: [
+            { kanji: "愛", reading: "あい" }, { kanji: "案", reading: "あん" },
+            { kanji: "以", reading: "い" }, { kanji: "衣", reading: "ころも" },
+            { kanji: "位", reading: "くらい" }, { kanji: "囲", reading: "かこむ" },
+            { kanji: "胃", reading: "い" }, { kanji: "印", reading: "しるし" },
+            { kanji: "英", reading: "えい" }, { kanji: "栄", reading: "さかえ" }
+        ],
+        5: [
+            { kanji: "圧", reading: "あつ" }, { kanji: "移", reading: "うつる" },
+            { kanji: "因", reading: "よる" }, { kanji: "永", reading: "ながい" },
+            { kanji: "営", reading: "いとなむ" }, { kanji: "衛", reading: "えい" },
+            { kanji: "易", reading: "やさしい" }, { kanji: "益", reading: "えき" },
+            { kanji: "液", reading: "えき" }, { kanji: "演", reading: "えん" }
+        ],
+        6: [
+            { kanji: "異", reading: "こと" }, { kanji: "遺", reading: "い" },
+            { kanji: "域", reading: "いき" }, { kanji: "宇", reading: "う" },
+            { kanji: "映", reading: "うつる" }, { kanji: "延", reading: "のびる" },
+            { kanji: "沿", reading: "そう" }, { kanji: "我", reading: "われ" },
+            { kanji: "灰", reading: "はい" }, { kanji: "拡", reading: "かく" }
+        ]
+    };
+
+    /* --- 効果音の読み込み --- */
+    // ファイルが存在しない場合のエラーを防ぐため、try-catchを入れていますが、
+    // 基本的には sounds/correct.mp3 などを用意してください。
+    const audioCorrect = new Audio('sounds/correct.mp3');
+    const audioWrong = new Audio('sounds/wrong.mp3');
+
+    function playSound(isCorrect) {
+        // 音声を最初から再生
+        const audio = isCorrect ? audioCorrect : audioWrong;
+        audio.currentTime = 0; 
+        audio.play().catch(e => console.log("音声ファイルが見つかりません: " + e));
+    }
+
+    /* --- 状態管理 --- */
+    let selectedGrade = 1;
+    let questionCount = 5;
+    let timeLimit = 5; // デフォルト5秒
+    let quizList = [];
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let isAnswering = false;
+    let timerInterval = null;
+    let timeLeft = 0;
+
+    /* --- 初期化 --- */
+    window.onload = function() {
+        const gradeSelector = document.getElementById('grade-selector');
+        for (let i = 1; i <= 6; i++) {
+            let btn = document.createElement('button');
+            btn.className = `btn btn-option ${i === 1 ? 'selected' : ''}`;
+            btn.innerText = `${i}年`;
+            btn.onclick = () => selectGrade(i, btn);
+            gradeSelector.appendChild(btn);
+        }
+    };
+
+    /* --- 設定操作 --- */
+    function selectGrade(grade, btnElement) {
+        selectedGrade = grade;
+        document.querySelectorAll('#grade-selector .btn').forEach(b => b.classList.remove('selected'));
+        btnElement.classList.add('selected');
+    }
+
+    function selectQuestionCount(count) {
+        questionCount = count;
+        updateButtonSelection('.q-count-btn', count);
+    }
+
+    function selectTimeLimit(seconds) {
+        timeLimit = seconds;
+        updateButtonSelection('.time-limit-btn', seconds);
+    }
+
+    function updateButtonSelection(selector, value) {
+        document.querySelectorAll(selector).forEach(b => {
+            if(b.innerText.includes(value)) b.classList.add('selected');
+            else b.classList.remove('selected');
+        });
+    }
+
+    /* --- ゲーム開始 --- */
+    function startGame() {
+        const sourceData = kanjiDatabase[selectedGrade];
+        if (!sourceData || sourceData.length < 3) {
+            alert("データが足りません。");
+            return;
+        }
+
+        let shuffled = [...sourceData].sort(() => 0.5 - Math.random());
+        quizList = shuffled.slice(0, Math.min(questionCount, sourceData.length));
+        
+        currentQuestionIndex = 0;
+        score = 0;
+
+        showScreen('quiz-screen');
+        loadQuestion();
+    }
+
+    /* --- 問題読み込み --- */
+    function loadQuestion() {
+        isAnswering = false;
+        clearInterval(timerInterval); // 前のタイマーをクリア
+
+        document.getElementById('feedback-area').innerText = "";
+        document.getElementById('progress-text').innerText = `第 ${currentQuestionIndex + 1} 問 / ${quizList.length} 問`;
+
+        const currentData = quizList[currentQuestionIndex];
+        document.getElementById('kanji-text').innerText = currentData.kanji;
+
+        // 選択肢生成
+        let options = [currentData.reading];
+        const otherReadings = kanjiDatabase[selectedGrade]
+            .filter(item => item.reading !== currentData.reading)
+            .map(item => item.reading);
+        
+        let wrongAnswers = otherReadings.sort(() => 0.5 - Math.random()).slice(0, 2);
+        options = options.concat(wrongAnswers);
+        options.sort(() => 0.5 - Math.random());
+
+        const optionsContainer = document.getElementById('options-container');
+        optionsContainer.innerHTML = "";
+        
+        options.forEach(option => {
+            let btn = document.createElement('button');
+            btn.className = "btn btn-large btn-option";
+            btn.innerText = option;
+            btn.onclick = () => checkAnswer(option, currentData.reading);
+            optionsContainer.appendChild(btn);
+        });
+
+        // タイマースタート
+        startTimer();
+    }
+
+    /* --- タイマー機能 --- */
+    function startTimer() {
+        timeLeft = timeLimit;
+        const timerBar = document.getElementById('timer-bar');
+        timerBar.style.width = "100%";
+        timerBar.style.backgroundColor = "#ff9800";
+
+        // 0.1秒ごとに更新
+        timerInterval = setInterval(() => {
+            timeLeft -= 0.1;
+            // バーの長さを更新
+            let percentage = (timeLeft / timeLimit) * 100;
+            timerBar.style.width = `${percentage}%`;
+
+            // 残り時間が少なくなったら赤くする
+            if (percentage < 30) {
+                timerBar.style.backgroundColor = "#d32f2f";
+            }
+
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                timeUp();
+            }
+        }, 100);
+    }
+
+    function timeUp() {
+        if(isAnswering) return;
+        const currentData = quizList[currentQuestionIndex];
+        // 時間切れは強制的に不正解扱い
+        showFeedback(false, currentData.reading, true);
+    }
+
+    /* --- 答え合わせ --- */
+    function checkAnswer(selected, correct) {
+        if (isAnswering) return;
+        clearInterval(timerInterval); // タイマー停止
+        
+        const isCorrect = (selected === correct);
+        if (isCorrect) score++;
+        
+        showFeedback(isCorrect, correct, false);
+    }
+
+    function showFeedback(isCorrect, correctAns, isTimeUp) {
+        isAnswering = true;
+        const feedback = document.getElementById('feedback-area');
+        
+        if (isCorrect) {
+            feedback.innerText = "正解！⭕";
+            feedback.className = "feedback correct";
+            playSound(true);
+        } else {
+            playSound(false);
+            feedback.className = "feedback incorrect";
+            if (isTimeUp) {
+                feedback.innerText = `時間切れ... 正解は「${correctAns}」`;
+            } else {
+                feedback.innerText = `残念... 正解は「${correctAns}」`;
+            }
+        }
+
+        setTimeout(() => {
+            currentQuestionIndex++;
+            if (currentQuestionIndex < quizList.length) {
+                loadQuestion();
+            } else {
+                showResult();
+            }
+        }, 2000); // 結果表示時間を少し長めに（音を聞くため）
+    }
+
+    /* --- 結果画面 --- */
+    function showResult() {
+        showScreen('result-screen');
+        const scoreText = document.getElementById('score-text');
+        const commentText = document.getElementById('comment-text');
+        
+        const percentage = Math.round((score / quizList.length) * 100);
+        scoreText.innerText = `${percentage}点`;
+
+        if (percentage === 100) {
+            commentText.innerText = "大変よくできました！💮";
+            playSound(true);
+        } else if (percentage >= 80) {
+            commentText.innerText = "あと少し！おしい！👏";
+        } else {
+            commentText.innerText = "またがんばろう！💪";
+        }
+    }
+
+    function returnToMenu() {
+        showScreen('menu-screen');
+    }
+
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+</script>
+
+</body>
+</html>
